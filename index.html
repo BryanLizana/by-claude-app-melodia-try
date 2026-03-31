@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Melodic Line Explorer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a1a;
+      color: #e0e0ff;
+      font-family: 'Courier New', monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── BARRA SUPERIOR ── */
+    #barraSuperior {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      background: #111128;
+      border-bottom: 1px solid #2a2a5a;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    #barraSuperior h1 {
+      font-size: 14px;
+      color: #7777ff;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-right: 8px;
+    }
+
+    .ctrl-grupo {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ctrl-grupo label {
+      font-size: 11px;
+      color: #8888aa;
+    }
+
+    button {
+      background: #1a1a3a;
+      color: #aaaaff;
+      border: 1px solid #3a3a7a;
+      border-radius: 4px;
+      padding: 4px 12px;
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: #2a2a5a; }
+    button.grabando { background: #5a1a1a; border-color: #ff4444; color: #ff8888; }
+    button.filtro-activo { background: #1a3a2a; border-color: #44ff88; color: #44ff88; }
+
+    .btn-nota {
+      padding: 3px 6px;
+      font-size: 11px;
+      min-width: 28px;
+    }
+    .btn-nota.seleccionada {
+      background: #2a1a4a;
+      border-color: #aa44ff;
+      color: #cc88ff;
+    }
+
+    .tecla-filtrada {
+      opacity: 0.15;
+      pointer-events: none;
+    }
+
+    select {
+      background: #1a1a3a;
+      color: #aaaaff;
+      border: 1px solid #3a3a7a;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-family: inherit;
+      font-size: 12px;
+    }
+
+    /* ── INFO CENTRAL ── */
+    #infoNota {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-left: auto;
+    }
+
+    #notaActual {
+      font-size: 28px;
+      font-weight: bold;
+      color: #ff4488;
+      min-width: 48px;
+      text-align: center;
+    }
+
+    #frecuenciaActual {
+      font-size: 12px;
+      color: #888899;
+    }
+
+    /* ── ESCALA DETECTADA ── */
+    #bloqueEscala {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      font-size: 11px;
+    }
+
+    #bloqueEscala span { color: #666688; margin-bottom: 2px; }
+
+    #escalaDetectada {
+      font-size: 13px;
+      font-weight: bold;
+      color: #aaaaff;
+      min-width: 160px;
+      text-align: right;
+    }
+
+    #escalaDetectada.escala-mayor { color: #44ff88; }
+    #escalaDetectada.escala-menor { color: #ff8844; }
+
+    /* ── CONTENEDOR PRINCIPAL ── */
+    #contenedorPrincipal {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── PANEL LATERAL / TECLADO PIANO ── */
+    #panelNotas {
+      width: 72px;
+      position: relative;
+      background: #06060f;
+      border-right: 2px solid #1e1e4a;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .tecla-piano {
+      position: absolute;
+      left: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: center;
+      padding-right: 5px;
+      gap: 1px;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid #0a0a1e;
+      transition: background 0.07s, color 0.07s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .tecla-nombre { font-size: 16px;  font-weight: bold; }
+    .tecla-atajo  { font-size: 8px;  color: #44445a;    font-style: normal; line-height: 1; }
+    .tecla-activa .tecla-atajo { color: #cc3366; }
+
+    /* Tecla blanca — ancho completo */
+    .tecla-blanca {
+      width: 100%;
+      background: #1c1c38;
+      color: #9999cc;
+    }
+    .tecla-blanca:hover { background: #26264a; }
+
+    /* Tecla negra — más angosta, como en piano real */
+    .tecla-negra {
+      width: 62%;
+      background: #08081a;
+      color: #44446a;
+      font-style: italic;
+      border-bottom-color: #050510;
+      z-index: 1;
+    }
+    .tecla-negra:hover { background: #121228; }
+
+    /* Estado activo (tocando) */
+    .tecla-activa.tecla-blanca { background: #3a1040 !important; color: #ff4488 !important; }
+    .tecla-activa.tecla-negra  { background: #280a2c !important; color: #ff4488 !important; }
+
+    /* ── CANVAS ── */
+    #wrapperCanvas {
+      flex: 1;
+      position: relative;
+      cursor: crosshair;
+    }
+
+    #canvasMelodia {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── MOBILE ── */
+    @media (max-width: 680px) {
+      #barraSuperior { gap: 8px; padding: 6px 10px; }
+
+      .btn-nota {
+        padding: 7px 9px;
+        font-size: 14px;
+        min-width: 36px;
+      }
+
+      button { padding: 6px 14px; font-size: 13px; }
+
+      #notaActual { font-size: 36px; }
+
+      #panelNotas { width: 88px; }
+
+      .tecla-nombre { font-size: 13px; }
+      .tecla-atajo  { font-size: 11px; }
+    }
+
+    /* ── HINT ── */
+    #hint {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: #333355;
+      pointer-events: none;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── BARRA SUPERIOR ── -->
+<div id="barraSuperior">
+  <h1>&#9834; Melodic Line</h1>
+
+  <div class="ctrl-grupo">
+    <label>Timbre:</label>
+    <select id="selectorOnda">
+      <option value="sine">Sine (suave)</option>
+      <option value="triangle">Triangle (flauta)</option>
+      <option value="sawtooth">Sawtooth (violín)</option>
+      <option value="square">Square (clarinete)</option>
+    </select>
+  </div>
+
+  <div class="ctrl-grupo" id="selectorNotas">
+    <label>Notas:</label>
+    <button class="btn-nota" data-semi="0">C</button>
+    <button class="btn-nota" data-semi="1">C#</button>
+    <button class="btn-nota" data-semi="2">D</button>
+    <button class="btn-nota" data-semi="3">D#</button>
+    <button class="btn-nota" data-semi="4">E</button>
+    <button class="btn-nota" data-semi="5">F</button>
+    <button class="btn-nota" data-semi="6">F#</button>
+    <button class="btn-nota" data-semi="7">G</button>
+    <button class="btn-nota" data-semi="8">G#</button>
+    <button class="btn-nota" data-semi="9">A</button>
+    <button class="btn-nota" data-semi="10">A#</button>
+    <button class="btn-nota" data-semi="11">B</button>
+    <button id="btnFiltrar">&#9654; Filtrar</button>
+  </div>
+
+  <div class="ctrl-grupo">
+    <button id="btnLimpiar">&#x2715; Limpiar</button>
+    <button id="btnGrabar">&#9210; Grabar</button>
+    <button id="btnReproducir">&#9654; Reproducir</button>
+  </div>
+
+  <div id="infoNota">
+    <div id="notaActual">—</div>
+    <div id="frecuenciaActual">— Hz</div>
+  </div>
+
+  <div id="bloqueEscala">
+    <span>Escala detectada:</span>
+    <div id="escalaDetectada">— esperando notas —</div>
+  </div>
+</div>
+
+<!-- ── ÁREA DE TRABAJO ── -->
+<div id="contenedorPrincipal">
+  <div id="panelNotas"></div>
+  <div id="wrapperCanvas">
+    <canvas id="canvasMelodia"></canvas>
+    <div id="hint">MUEVE EL MOUSE SOBRE EL CANVAS PARA TOCAR</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================
+// MapaNotas — convierte posición Y → nota → frecuencia
+// ============================================================
+class MapaNotas {
+  constructor() {
+    this.notas = [
+      { nombre: 'C6',  semitonos: 0,  frecuencia: 1046.50 },
+      { nombre: 'B5',  semitonos: 11, frecuencia:  987.77 },
+      { nombre: 'A#5', semitonos: 10, frecuencia:  932.33 },
+      { nombre: 'A5',  semitonos: 9,  frecuencia:  880.00 },
+      { nombre: 'G#5', semitonos: 8,  frecuencia:  830.61 },
+      { nombre: 'G5',  semitonos: 7,  frecuencia:  783.99 },
+      { nombre: 'F#5', semitonos: 6,  frecuencia:  739.99 },
+      { nombre: 'F5',  semitonos: 5,  frecuencia:  698.46 },
+      { nombre: 'E5',  semitonos: 4,  frecuencia:  659.25 },
+      { nombre: 'D#5', semitonos: 3,  frecuencia:  622.25 },
+      { nombre: 'D5',  semitonos: 2,  frecuencia:  587.33 },
+      { nombre: 'C#5', semitonos: 1,  frecuencia:  554.37 },
+      { nombre: 'C5',  semitonos: 0,  frecuencia:  523.25 },
+      { nombre: 'B4',  semitonos: 11, frecuencia:  493.88 },
+      { nombre: 'A#4', semitonos: 10, frecuencia:  466.16 },
+      { nombre: 'A4',  semitonos: 9,  frecuencia:  440.00 },
+      { nombre: 'G#4', semitonos: 8,  frecuencia:  415.30 },
+      { nombre: 'G4',  semitonos: 7,  frecuencia:  392.00 },
+      { nombre: 'F#4', semitonos: 6,  frecuencia:  369.99 },
+      { nombre: 'F4',  semitonos: 5,  frecuencia:  349.23 },
+      { nombre: 'E4',  semitonos: 4,  frecuencia:  329.63 },
+      { nombre: 'D#4', semitonos: 3,  frecuencia:  311.13 },
+      { nombre: 'D4',  semitonos: 2,  frecuencia:  293.66 },
+      { nombre: 'C#4', semitonos: 1,  frecuencia:  277.18 },
+      { nombre: 'C4',  semitonos: 0,  frecuencia:  261.63 },
+    ];
+  }
+
+  obtenerPorIndice(i)          { return this.notas[i] ?? null; }
+  obtenerTotal()               { return this.notas.length; }
+
+  obtenerPorY(y, alturaCanvas, filtroSemitonos = null) {
+    const i = Math.min(
+      Math.max(Math.floor((y / alturaCanvas) * this.notas.length), 0),
+      this.notas.length - 1
+    );
+    if (!filtroSemitonos || filtroSemitonos.size === 0) return { nota: this.notas[i], indice: i };
+
+    // Snap a la nota permitida más cercana
+    let mejorI = -1, mejorDist = Infinity;
+    for (let j = 0; j < this.notas.length; j++) {
+      if (!filtroSemitonos.has(((this.notas[j].semitonos % 12) + 12) % 12)) continue;
+      const dist = Math.abs(j - i);
+      if (dist < mejorDist) { mejorDist = dist; mejorI = j; }
+    }
+    const idx = mejorI === -1 ? i : mejorI;
+    return { nota: this.notas[idx], indice: idx };
+  }
+
+  obtenerYPorIndice(i, alturaCanvas) {
+    const paso = alturaCanvas / this.notas.length;
+    return i * paso + paso / 2;
+  }
+}
+
+// ============================================================
+// GestorAudio — Web Audio API
+// ============================================================
+class GestorAudio {
+  constructor() {
+    this.ctx        = null;
+    this.oscilador  = null;
+    this.ganancia   = null;
+    this.activo     = false;
+    this.tipoOnda   = 'sine';
+  }
+
+  async _asegurarContexto() {
+    if (!this.ctx) {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.ganancia = this.ctx.createGain();
+      this.ganancia.gain.setValueAtTime(0, this.ctx.currentTime);
+      this.ganancia.connect(this.ctx.destination);
+    }
+    if (this.ctx.state === 'suspended') await this.ctx.resume();
+  }
+
+  async iniciarNota(frecuencia) {
+    await this._asegurarContexto();
+    if (this.oscilador) { try { this.oscilador.stop(); } catch(_) {} }
+
+    this.oscilador = this.ctx.createOscillator();
+    this.oscilador.type = this.tipoOnda;
+    this.oscilador.frequency.setValueAtTime(frecuencia, this.ctx.currentTime);
+    this.oscilador.connect(this.ganancia);
+    this.oscilador.start();
+    this.ganancia.gain.linearRampToValueAtTime(0.28, this.ctx.currentTime + 0.04);
+    this.activo = true;
+  }
+
+  cambiarFrecuencia(frecuencia) {
+    if (this.oscilador && this.activo)
+      this.oscilador.frequency.linearRampToValueAtTime(frecuencia, this.ctx.currentTime + 0.02);
+  }
+
+  detenerNota() {
+    if (!this.activo || !this.ganancia) return;
+    this.ganancia.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.08);
+    this.activo = false;
+    setTimeout(() => { try { if(this.oscilador) this.oscilador.stop(); } catch(_){} }, 120);
+  }
+
+  cambiarTipoOnda(tipo) {
+    this.tipoOnda = tipo;
+    if (this.oscilador) this.oscilador.type = tipo;
+  }
+}
+
+// ============================================================
+// DetectorEscala — identifica escala mayor/menor
+// ============================================================
+class DetectorEscala {
+  constructor() {
+    this.escalas = [
+      { nombre: 'Do Mayor',  tipo: 'mayor', grados: [0,2,4,5,7,9,11]  },
+      { nombre: 'Sol Mayor', tipo: 'mayor', grados: [7,9,11,0,2,4,6]  },
+      { nombre: 'Re Mayor',  tipo: 'mayor', grados: [2,4,6,7,9,11,1]  },
+      { nombre: 'La Mayor',  tipo: 'mayor', grados: [9,11,1,2,4,6,8]  },
+      { nombre: 'Mi Mayor',  tipo: 'mayor', grados: [4,6,8,9,11,1,3]  },
+      { nombre: 'Fa Mayor',  tipo: 'mayor', grados: [5,7,9,10,0,2,4]  },
+      { nombre: 'Sib Mayor', tipo: 'mayor', grados: [10,0,2,3,5,7,9]  },
+      { nombre: 'La menor',  tipo: 'menor', grados: [9,11,0,2,4,5,7]  },
+      { nombre: 'Mi menor',  tipo: 'menor', grados: [4,6,7,9,11,0,2]  },
+      { nombre: 'Re menor',  tipo: 'menor', grados: [2,4,5,7,9,10,0]  },
+      { nombre: 'Sol menor', tipo: 'menor', grados: [7,9,10,0,2,3,5]  },
+      { nombre: 'Do menor',  tipo: 'menor', grados: [0,2,3,5,7,8,10]  },
+      { nombre: 'Si menor',  tipo: 'menor', grados: [11,1,2,4,6,7,9]  },
+    ];
+    this.notasUsadas = new Set();
+  }
+
+  detectarDesde(semisSet) {
+    if (semisSet.size < 2) return null;
+    let mejor = null, mejorPts = 0;
+
+    for (const escala of this.escalas) {
+      const conjunto = new Set(escala.grados.map(g => ((g % 12) + 12) % 12));
+      let aciertos = 0;
+      for (const n of semisSet) if (conjunto.has(n)) aciertos++;
+      const pts = aciertos / semisSet.size;
+      if (pts > mejorPts) { mejorPts = pts; mejor = { escala, pct: Math.round(pts * 100) }; }
+    }
+    return mejor;
+  }
+}
+
+// ============================================================
+// GrabadorMelodia — graba y reproduce trazos
+// ============================================================
+class GrabadorMelodia {
+  constructor() {
+    this.grabando     = false;
+    this.puntos       = [];
+    this.t0           = 0;
+  }
+
+  iniciar()  { this.grabando = true; this.puntos = []; this.t0 = Date.now(); }
+  detener()  { this.grabando = false; }
+  hayDatos() { return this.puntos.length > 0; }
+
+  registrar(x, y, frecuencia, nombreNota) {
+    if (!this.grabando) return;
+    this.puntos.push({ ms: Date.now() - this.t0, x, y, frecuencia, nombreNota });
+  }
+
+  reproducir(cbPunto, cbFin) {
+    if (!this.hayDatos()) return;
+    this.puntos.forEach((p, i) => {
+      setTimeout(() => {
+        cbPunto(p);
+        if (i === this.puntos.length - 1) cbFin();
+      }, p.ms);
+    });
+  }
+
+  obtenerPuntos() { return [...this.puntos]; }
+}
+
+// ============================================================
+// RendizadorCanvas — todo lo visual del canvas
+// ============================================================
+class RendizadorCanvas {
+  constructor(canvas, mapaNotas) {
+    this.canvas    = canvas;
+    this.ctx       = canvas.getContext('2d');
+    this.mapaNotas = mapaNotas;
+    this.puntos    = [];        // [{x, y}]
+    this.cursory   = -1;
+    this.indiceActivo = -1;
+  }
+
+  ajustarTamano() {
+    const w = this.canvas.parentElement;
+    this.canvas.width  = w.clientWidth;
+    this.canvas.height = w.clientHeight;
+  }
+
+  agregarPunto(x, y) {
+    this.puntos.push({ x, y });
+    // Scroll horizontal: si superamos el ancho, eliminamos el primero y desplazamos
+    if (this.puntos.length > 1200) {
+      const delta = this.puntos[1].x - this.puntos[0].x;
+      this.puntos.shift();
+      if (delta > 0) this.puntos = this.puntos.map(p => ({ x: p.x - delta, y: p.y }));
+    }
+  }
+
+  limpiarPuntos() { this.puntos = []; }
+
+  actualizarCursor(y, indice) { this.cursory = y; this.indiceActivo = indice; }
+  desactivarCursor()          { this.cursory = -1; this.indiceActivo = -1; }
+
+  renderizar() {
+    const { ctx, canvas, mapaNotas } = this;
+    const W = canvas.width, H = canvas.height;
+    const total = mapaNotas.obtenerTotal();
+    const pasoY = H / total;
+
+    // Fondo
+    ctx.fillStyle = '#08081a';
+    ctx.fillRect(0, 0, W, H);
+
+    // Líneas de notas
+    for (let i = 0; i < total; i++) {
+      const nota = mapaNotas.obtenerPorIndice(i);
+      const y    = mapaNotas.obtenerYPorIndice(i, H);
+      const esNatural = [0, 2, 4, 5, 7, 9, 11].includes(nota.semitonos);
+
+      // Resaltar fila activa
+      if (i === this.indiceActivo) {
+        ctx.fillStyle = 'rgba(255,68,136,0.08)';
+        ctx.fillRect(0, i * pasoY, W, pasoY);
+      }
+
+      ctx.beginPath();
+      ctx.strokeStyle = esNatural ? 'rgba(180,180,255,0.12)' : 'rgba(80,80,200,0.06)';
+      ctx.lineWidth   = esNatural ? 1 : 0.5;
+      ctx.setLineDash(esNatural ? [] : [6, 10]);
+      ctx.moveTo(0, y); ctx.lineTo(W, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Línea de melodía
+    if (this.puntos.length > 1) {
+      ctx.beginPath();
+      ctx.strokeStyle = '#141c18';
+      ctx.lineWidth   = 2.5;
+      ctx.lineJoin    = 'round';
+      ctx.lineCap     = 'round';
+      ctx.shadowColor = '#57635d';
+      ctx.shadowBlur  = 8;
+      ctx.moveTo(this.puntos[0].x, this.puntos[0].y);
+      for (let i = 1; i < this.puntos.length; i++)
+        ctx.lineTo(this.puntos[i].x, this.puntos[i].y);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Punto final brillante
+      const ult = this.puntos[this.puntos.length - 1];
+      ctx.beginPath();
+      ctx.fillStyle = '#ff4488';
+      ctx.shadowColor = '#ff448888'; ctx.shadowBlur = 12;
+      ctx.arc(ult.x, ult.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+}
+
+// ============================================================
+// AplicacionMelodica — orquestador (DIP + SRP)
+// ============================================================
+
+// Mapeo teclado → índice de nota (0 = C6 arriba, 19 = F4 abajo)
+const MAPA_TECLADO = {
+  '1': 0, '2': 1, '3': 2, '4': 3, '5': 4,
+  '6': 5, '7': 6, '8': 7, '9': 8, '0': 9,
+  'q':10, 'w':11, 'e':12, 'r':13, 't':14,
+  'y':15, 'u':16, 'i':17, 'o':18, 'p':19,
+};
+const MAPA_INVERSO = Object.fromEntries(Object.entries(MAPA_TECLADO).map(([k,v]) => [v,k]));
+
+class AplicacionMelodica {
+  constructor() {
+    this.mapaNotas     = new MapaNotas();
+    this.audio         = new GestorAudio();
+    this.detector      = new DetectorEscala();
+    this.grabador      = new GrabadorMelodia();
+
+    this.canvas        = document.getElementById('canvasMelodia');
+    this.render        = new RendizadorCanvas(this.canvas, this.mapaNotas);
+
+    this.tocando          = false;
+    this.enGrabacion      = false;
+    this.filtroSemitonos  = null;   // Set<number> | null
+
+    this._init();
+  }
+
+  _init() {
+    this.render.ajustarTamano();
+    this._teclas = [];
+    this._teclaPresionada = -1;
+    this._construirTeclado();
+    this._bindEventos();
+    this._bucleRender();
+    window.addEventListener('resize', () => {
+      this.render.ajustarTamano();
+      this._construirTeclado();
+    });
+  }
+
+  _bindEventos() {
+    this.canvas.addEventListener('mouseenter', e => this._onEnter(e));
+    this.canvas.addEventListener('mousemove',  e => this._onMove(e));
+    this.canvas.addEventListener('mouseleave', ()  => this._onLeave());
+
+    document.querySelectorAll('.btn-nota').forEach(btn => {
+      btn.addEventListener('click', () => {
+        btn.classList.toggle('seleccionada');
+        this._actualizarEscalaDeSeleccion();
+      });
+    });
+    document.getElementById('btnFiltrar').addEventListener('click', () => this._toggleFiltro());
+    document.getElementById('btnLimpiar').addEventListener('click', () => this._limpiar());
+    document.getElementById('btnGrabar').addEventListener('click',  () => this._toggleGrabar());
+    document.getElementById('btnReproducir').addEventListener('click', () => this._reproducir());
+    document.getElementById('selectorOnda').addEventListener('change', e => {
+      this.audio.cambiarTipoOnda(e.target.value);
+    });
+
+    // Teclado: notas (1-0, q-p) y espacio para limpiar
+    const teclasPulsadas = new Set();
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      if (e.code === 'Space') { e.preventDefault(); this._limpiar(); return; }
+      const key = e.key.toLowerCase();
+      if (MAPA_TECLADO[key] !== undefined && !teclasPulsadas.has(key)) {
+        e.preventDefault();
+        teclasPulsadas.add(key);
+        this._tocarTeclaPiano(MAPA_TECLADO[key]);
+      }
+    });
+    document.addEventListener('keyup', (e) => {
+      const key = e.key.toLowerCase();
+      if (!teclasPulsadas.has(key)) return;
+      teclasPulsadas.delete(key);
+      // Si quedan otras teclas pulsadas, suena la última
+      if (teclasPulsadas.size > 0) {
+        const ultima = [...teclasPulsadas].at(-1);
+        this._tocarTeclaPiano(MAPA_TECLADO[ultima]);
+      } else {
+        this._soltarTeclaPiano();
+      }
+    });
+
+    // Ocultar hint al primer movimiento
+    const hint = document.getElementById('hint');
+    this.canvas.addEventListener('mouseenter', () => { if(hint) hint.style.opacity = '0'; }, { once: true });
+  }
+
+  _posicionEnCanvas(e) {
+    const r = this.canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  _onEnter(e) {
+    const { x, y } = this._posicionEnCanvas(e);
+    const { nota, indice } = this.mapaNotas.obtenerPorY(y, this.canvas.height, this.filtroSemitonos);
+    this.audio.iniciarNota(nota.frecuencia);
+    this.tocando = true;
+    this._actualizarUI(nota, indice);
+  }
+
+  _onMove(e) {
+    if (!this.tocando) return;
+    const { x, y } = this._posicionEnCanvas(e);
+    const { nota, indice } = this.mapaNotas.obtenerPorY(y, this.canvas.height, this.filtroSemitonos);
+
+    this.audio.cambiarFrecuencia(nota.frecuencia);
+    this.render.agregarPunto(x, y);
+    this.render.actualizarCursor(y, indice);
+
+    if (this.enGrabacion) this.grabador.registrar(x, y, nota.frecuencia, nota.nombre);
+
+    this._actualizarUI(nota, indice);
+  }
+
+  _onLeave() {
+    this.audio.detenerNota();
+    this.tocando = false;
+    this.render.desactivarCursor();
+    document.getElementById('notaActual').textContent = '—';
+    document.getElementById('frecuenciaActual').textContent = '— Hz';
+  }
+
+  _actualizarUI(nota, indice) {
+    document.getElementById('notaActual').textContent     = nota.nombre;
+    document.getElementById('frecuenciaActual').textContent = `${nota.frecuencia.toFixed(1)} Hz`;
+    this._actualizarTeclaActiva(indice);
+  }
+
+  _actualizarEscalaDeSeleccion() {
+    const semis = new Set();
+    document.querySelectorAll('.btn-nota.seleccionada').forEach(b => semis.add(parseInt(b.dataset.semi)));
+    const el = document.getElementById('escalaDetectada');
+    if (semis.size < 2) {
+      el.textContent = '— marca notas arriba —';
+      el.className   = '';
+      return;
+    }
+    const res = this.detector.detectarDesde(semis);
+    if (res) {
+      el.textContent = `${res.escala.nombre}  (${res.pct}%)`;
+      el.className   = res.escala.tipo === 'mayor' ? 'escala-mayor' : 'escala-menor';
+    }
+  }
+
+  _construirTeclado() {
+    const panel = document.getElementById('panelNotas');
+    panel.innerHTML = '';
+    this._teclas = [];
+    const total = this.mapaNotas.obtenerTotal();
+    const pct   = 100 / total;
+
+    for (let i = 0; i < total; i++) {
+      const nota = this.mapaNotas.obtenerPorIndice(i);
+      const div  = document.createElement('div');
+      const esNatural = [0, 2, 4, 5, 7, 9, 11].includes(nota.semitonos);
+
+      const permitida = !this.filtroSemitonos || this.filtroSemitonos.has(((nota.semitonos % 12) + 12) % 12);
+      div.className = `tecla-piano ${esNatural ? 'tecla-blanca' : 'tecla-negra'}${permitida ? '' : ' tecla-filtrada'}`;
+      div.style.cssText = `height:${pct}%; top:${i * pct}%;`;
+      div.dataset.indice = i;
+      const spanNombre = document.createElement('span');
+      spanNombre.className = 'tecla-nombre';
+      spanNombre.textContent = nota.nombre;
+      div.appendChild(spanNombre);
+      if (MAPA_INVERSO[i] !== undefined) {
+        const spanAtajo = document.createElement('span');
+        spanAtajo.className = 'tecla-atajo';
+        spanAtajo.textContent = MAPA_INVERSO[i].toUpperCase();
+        div.appendChild(spanAtajo);
+      }
+
+      // Mouse: clic sostenido + deslizar entre teclas
+      div.addEventListener('mousedown',  ()  => this._tocarTeclaPiano(i));
+      div.addEventListener('mouseup',    ()  => this._soltarTeclaPiano());
+      div.addEventListener('mouseenter', (e) => { if (e.buttons === 1) this._tocarTeclaPiano(i); });
+
+      // Touch: tap y glissando
+      div.addEventListener('touchstart', (e) => { e.preventDefault(); this._tocarTeclaPiano(i); }, { passive: false });
+      div.addEventListener('touchend',   (e) => { e.preventDefault(); this._soltarTeclaPiano(); },  { passive: false });
+
+      panel.appendChild(div);
+      this._teclas.push(div);
+    }
+
+    // Touch move para glissando (deslizar el dedo)
+    panel.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      const t  = e.touches[0];
+      const el = document.elementFromPoint(t.clientX, t.clientY);
+      if (el && el.dataset.indice !== undefined) {
+        const idx = parseInt(el.dataset.indice);
+        if (idx !== this._teclaPresionada) this._tocarTeclaPiano(idx);
+      }
+    }, { passive: false });
+  }
+
+  _tocarTeclaPiano(indice) {
+    const nota = this.mapaNotas.obtenerPorIndice(indice);
+    if (this._teclaPresionada === indice) return;
+    this._teclaPresionada = indice;
+    this.audio.iniciarNota(nota.frecuencia);
+    this._actualizarTeclaActiva(indice);
+    document.getElementById('notaActual').textContent      = nota.nombre;
+    document.getElementById('frecuenciaActual').textContent = `${nota.frecuencia.toFixed(1)} Hz`;
+  }
+
+  _soltarTeclaPiano() {
+    this._teclaPresionada = -1;
+    this.audio.detenerNota();
+    this._actualizarTeclaActiva(-1);
+    document.getElementById('notaActual').textContent      = '—';
+    document.getElementById('frecuenciaActual').textContent = '— Hz';
+  }
+
+  _actualizarTeclaActiva(indice) {
+    this._teclas.forEach((t, i) => t.classList.toggle('tecla-activa', i === indice));
+  }
+
+  _toggleGrabar() {
+    const btn = document.getElementById('btnGrabar');
+    if (!this.enGrabacion) {
+      this.enGrabacion = true;
+      this.grabador.iniciar();
+      btn.textContent = '⏹ Detener';
+      btn.classList.add('grabando');
+    } else {
+      this.enGrabacion = false;
+      this.grabador.detener();
+      btn.textContent = '⏺ Grabar';
+      btn.classList.remove('grabando');
+    }
+  }
+
+  _reproducir() {
+    if (!this.grabador.hayDatos()) return;
+    this.render.limpiarPuntos();
+
+    this.grabador.reproducir(
+      (p) => {
+        this.audio.iniciarNota(p.frecuencia);
+        this.render.agregarPunto(p.x, p.y);
+        document.getElementById('notaActual').textContent     = p.nombreNota;
+        document.getElementById('frecuenciaActual').textContent = `${p.frecuencia.toFixed(1)} Hz`;
+      },
+      () => this.audio.detenerNota()
+    );
+  }
+
+  _toggleFiltro() {
+    const btn = document.getElementById('btnFiltrar');
+
+    if (this.filtroSemitonos) {
+      // Desactivar filtro
+      this.filtroSemitonos = null;
+      btn.textContent = '▶ Filtrar';
+      btn.classList.remove('filtro-activo');
+    } else {
+      // Leer notas seleccionadas
+      const set = new Set();
+      document.querySelectorAll('.btn-nota.seleccionada').forEach(b => {
+        set.add(parseInt(b.dataset.semi));
+      });
+      if (set.size === 0) return;
+      this.filtroSemitonos = set;
+      btn.textContent = '✕ Quitar filtro';
+      btn.classList.add('filtro-activo');
+    }
+    this._construirTeclado();
+  }
+
+  _limpiar() {
+    this.render.limpiarPuntos();
+    this._actualizarTeclaActiva(-1);
+  }
+
+  _bucleRender() {
+    const tick = () => { this.render.renderizar(); requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+}
+
+// ── Arranque ──
+document.addEventListener('DOMContentLoaded', () => new AplicacionMelodica());
+</script>
+</body>
+</html>
