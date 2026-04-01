@@ -62,6 +62,8 @@
     button:hover { background: #2a2a5a; }
     button.grabando { background: #5a1a1a; border-color: #ff4444; color: #ff8888; }
     button.filtro-activo { background: #1a3a2a; border-color: #44ff88; color: #44ff88; }
+    button.modo-seq { background: #1a2a3a; border-color: #44aaff; color: #44aaff; }
+    button.reproduciendo { background: #2a1a4a; border-color: #aa44ff; color: #cc88ff; }
 
     .btn-nota {
       padding: 3px 6px;
@@ -109,6 +111,15 @@
       font-size: 12px;
       color: #888899;
     }
+
+    /* ── CONTADOR SECUENCIA ── */
+    #contadorSeq {
+      font-size: 11px;
+      color: #44aaff;
+      min-width: 70px;
+      display: none;
+    }
+    #contadorSeq.visible { display: block; }
 
     /* ── ESCALA DETECTADA ── */
     #bloqueEscala {
@@ -178,7 +189,7 @@
 
     /* Tecla negra — más angosta, como en piano real */
     .tecla-negra {
-      width: 62%;
+      width: 100%;
       background: #08081a;
       color: #44446a;
       font-style: italic;
@@ -190,6 +201,10 @@
     /* Estado activo (tocando) */
     .tecla-activa.tecla-blanca { background: #3a1040 !important; color: #ff4488 !important; }
     .tecla-activa.tecla-negra  { background: #280a2c !important; color: #ff4488 !important; }
+
+    /* Estado seq añadida */
+    .tecla-en-seq.tecla-blanca { background: #0a1a30 !important; color: #44aaff !important; }
+    .tecla-en-seq.tecla-negra  { background: #080e1c !important; color: #44aaff !important; }
 
     /* ── CANVAS ── */
     #wrapperCanvas {
@@ -222,6 +237,63 @@
 
       .tecla-nombre { font-size: 13px; }
       .tecla-atajo  { font-size: 11px; }
+    }
+
+    /* ── METRÓNOMO BATERÍA ── */
+    #panelMetronomo {
+      background: #09091f;
+      border-bottom: 1px solid #252555;
+      padding: 6px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    #panelMetronomo.oculto { display: none; }
+
+    .steps-grid {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .step-sep { width: 7px; flex-shrink: 0; }
+
+    .step-cell {
+      width: 13px;
+      height: 13px;
+      border-radius: 3px;
+      background: #12122e;
+      border: 1px solid #2a2a55;
+      flex-shrink: 0;
+      transition: background 0.05s, box-shadow 0.05s;
+    }
+    .step-cell.s-kick  { background: #ff6600; box-shadow: 0 0 7px #ff6600bb; border-color: #ff6600; }
+    .step-cell.s-snare { background: #ff4488; box-shadow: 0 0 7px #ff4488bb; border-color: #ff4488; }
+    .step-cell.s-hh    { background: #44ffcc; box-shadow: 0 0 7px #44ffccbb; border-color: #44ffcc; }
+    .step-cell.s-multi { background: #ffffff;  box-shadow: 0 0 7px #ffffffaa; border-color: #ddddff; }
+    .step-cell.s-vacio { background: #383860; border-color: #555588; }
+
+    #bpmValor { font-size: 13px; font-weight: bold; color: #7777ff; min-width: 30px; }
+    #btnMetroPlay.metro-activo  { background: #0e2a0e; border-color: #44ff44; color: #44ff44; }
+    #btnMetronomo.panel-abierto { background: #1a1a40; border-color: #9999ff; color: #ccccff; }
+
+    input[type="range"].slider-bpm {
+      -webkit-appearance: none;
+      width: 90px; height: 4px;
+      background: #2a2a5a; border-radius: 2px; outline: none; cursor: pointer;
+    }
+    input[type="range"].slider-bpm::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #7777ff; cursor: pointer;
+    }
+
+    .metro-leyenda {
+      display: flex; gap: 8px; align-items: center; font-size: 10px; color: #666688;
+    }
+    .leyenda-dot {
+      width: 8px; height: 8px; border-radius: 2px; display: inline-block;
     }
 
     /* ── HINT ── */
@@ -274,16 +346,49 @@
     <button id="btnLimpiar">&#x2715; Limpiar</button>
     <button id="btnGrabar">&#9210; Grabar</button>
     <button id="btnReproducir">&#9654; Reproducir</button>
+    <button id="btnModoSeq">&#9654;&#9654; Sec</button>
+    <button id="btnQuitarUltima" style="display:none">&#9003; Quitar</button>
+    <button id="btnSilencio" style="display:none">&#9135; Silencio</button>
+    <button id="btnMetronomo">&#127941; Beat</button>
   </div>
 
   <div id="infoNota">
     <div id="notaActual">—</div>
     <div id="frecuenciaActual">— Hz</div>
+    <div id="contadorSeq">0 notas</div>
   </div>
 
   <div id="bloqueEscala">
     <span>Escala detectada:</span>
     <div id="escalaDetectada">— esperando notas —</div>
+  </div>
+</div>
+
+<!-- ── PANEL METRÓNOMO BATERÍA ── -->
+<div id="panelMetronomo" class="oculto">
+  <div class="ctrl-grupo">
+    <button id="btnMetroPlay">&#9654; Iniciar</button>
+  </div>
+  <div class="ctrl-grupo">
+    <label>BPM:</label>
+    <input type="range" class="slider-bpm" id="sliderBpm" min="60" max="200" value="100">
+    <span id="bpmValor">100</span>
+  </div>
+  <div class="ctrl-grupo">
+    <label>Patrón:</label>
+    <select id="selectorPatron">
+      <option value="0">Rock Básico</option>
+      <option value="1">Funk</option>
+      <option value="2">Reggaeton</option>
+      <option value="3">Samba</option>
+      <option value="4">Hip-Hop</option>
+    </select>
+  </div>
+  <div class="steps-grid" id="stepsGrid"></div>
+  <div class="metro-leyenda">
+    <span class="leyenda-dot" style="background:#ff6600"></span>kick
+    <span class="leyenda-dot" style="background:#ff4488"></span>snare
+    <span class="leyenda-dot" style="background:#44ffcc"></span>hi-hat
   </div>
 </div>
 
@@ -386,6 +491,10 @@ class GestorAudio {
     await this._asegurarContexto();
     if (this.oscilador) { try { this.oscilador.stop(); } catch(_) {} }
 
+    // Cancelar cualquier rampa pendiente para evitar conflictos de automatización
+    this.ganancia.gain.cancelScheduledValues(this.ctx.currentTime);
+    this.ganancia.gain.setValueAtTime(0, this.ctx.currentTime);
+
     this.oscilador = this.ctx.createOscillator();
     this.oscilador.type = this.tipoOnda;
     this.oscilador.frequency.setValueAtTime(frecuencia, this.ctx.currentTime);
@@ -405,6 +514,11 @@ class GestorAudio {
     this.ganancia.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.08);
     this.activo = false;
     setTimeout(() => { try { if(this.oscilador) this.oscilador.stop(); } catch(_){} }, 120);
+  }
+
+  async tocarBreve(frecuencia, duracionMs) {
+    await this.iniciarNota(frecuencia);
+    setTimeout(() => this.detenerNota(), duracionMs);
   }
 
   cambiarTipoOnda(tipo) {
@@ -484,6 +598,87 @@ class GrabadorMelodia {
 }
 
 // ============================================================
+// SecuenciadorMelodia — modo MIDI step-by-step
+// ============================================================
+class SecuenciadorMelodia {
+  constructor() {
+    this.notas        = []; // [{indice, nombre, frecuencia}]
+    this.posActual    = -1; // índice de nota reproduciéndose
+    this._timeouts    = [];
+    this.reproduciendo = false;
+  }
+
+  agregarNota(nota, indice) {
+    this.notas.push({ indice, nombre: nota.nombre, frecuencia: nota.frecuencia });
+  }
+
+  agregarSilencio() {
+    this.notas.push({ indice: -1, nombre: '—', frecuencia: 0, esSilencio: true });
+  }
+
+  quitarNota(pos) {
+    if (pos >= 0 && pos < this.notas.length) this.notas.splice(pos, 1);
+  }
+
+  quitarUltima() { this.notas.pop(); }
+
+  limpiar() { this.notas = []; this.posActual = -1; }
+
+  hayDatos() { return this.notas.length > 0; }
+
+  detener() {
+    this._timeouts.forEach(t => clearTimeout(t));
+    this._timeouts = [];
+    this.reproduciendo = false;
+    this.posActual = -1;
+  }
+
+  // bpm: beats por minuto, cada nota dura 1 beat
+  // cbNota(nota, pos) — llamado al tocar cada nota
+  // cbFin() — llamado al terminar
+  // startDelayMs: milisegundos desde ahora hasta la primera nota (0 = inmediato)
+  reproducir(bpm, cbNota, cbFin, startDelayMs = 0) {
+    if (!this.hayDatos()) return;
+    this.detener();
+    this.reproduciendo = true;
+    const msNota = Math.round((60 / bpm) * 1000);
+
+    this.notas.forEach((n, i) => {
+      const t = setTimeout(() => {
+        this.posActual = i;
+        cbNota(n, i);
+        if (i === this.notas.length - 1) {
+          setTimeout(() => {
+            this.posActual = -1;
+            this.reproduciendo = false;
+            cbFin();
+          }, msNota);
+        }
+      }, startDelayMs + i * msNota);
+      this._timeouts.push(t);
+    });
+  }
+
+  // Devuelve índice de nota en posición de canvas (para detectar click sobre nota)
+  hitTest(cx, cy, canvasW, canvasH, totalNotas) {
+    if (this.notas.length === 0) return -1;
+    const visible = Math.max(this.notas.length + 2, 16);
+    const cellW   = canvasW / visible;
+    const pasoY   = canvasH / totalNotas;
+
+    for (let i = 0; i < this.notas.length; i++) {
+      const nx  = (i + 0.5) * cellW;
+      const ny  = this.notas[i].esSilencio
+        ? canvasH / 2
+        : this.notas[i].indice * pasoY + pasoY / 2;
+      const rad = Math.min(cellW * 0.38, pasoY * 0.42, 18);
+      if (Math.hypot(cx - nx, cy - ny) <= rad + 4) return i;
+    }
+    return -1;
+  }
+}
+
+// ============================================================
 // RendizadorCanvas — todo lo visual del canvas
 // ============================================================
 class RendizadorCanvas {
@@ -494,6 +689,11 @@ class RendizadorCanvas {
     this.puntos    = [];        // [{x, y}]
     this.cursory   = -1;
     this.indiceActivo = -1;
+    // Modo secuencia
+    this.modoSeq      = false;
+    this.seqNotas     = [];
+    this.seqPos       = -1;
+    this.filtroSemitonos = null;
   }
 
   ajustarTamano() {
@@ -504,7 +704,6 @@ class RendizadorCanvas {
 
   agregarPunto(x, y) {
     this.puntos.push({ x, y });
-    // Scroll horizontal: si superamos el ancho, eliminamos el primero y desplazamos
     if (this.puntos.length > 1200) {
       const delta = this.puntos[1].x - this.puntos[0].x;
       this.puntos.shift();
@@ -518,22 +717,27 @@ class RendizadorCanvas {
   desactivarCursor()          { this.cursory = -1; this.indiceActivo = -1; }
 
   renderizar() {
+    if (this.modoSeq) {
+      this._renderizarSecuencia();
+    } else {
+      this._renderizarLibre();
+    }
+  }
+
+  _renderizarLibre() {
     const { ctx, canvas, mapaNotas } = this;
     const W = canvas.width, H = canvas.height;
     const total = mapaNotas.obtenerTotal();
     const pasoY = H / total;
 
-    // Fondo
     ctx.fillStyle = '#08081a';
     ctx.fillRect(0, 0, W, H);
 
-    // Líneas de notas
     for (let i = 0; i < total; i++) {
       const nota = mapaNotas.obtenerPorIndice(i);
       const y    = mapaNotas.obtenerYPorIndice(i, H);
       const esNatural = [0, 2, 4, 5, 7, 9, 11].includes(nota.semitonos);
 
-      // Resaltar fila activa
       if (i === this.indiceActivo) {
         ctx.fillStyle = 'rgba(255,68,136,0.08)';
         ctx.fillRect(0, i * pasoY, W, pasoY);
@@ -548,7 +752,6 @@ class RendizadorCanvas {
       ctx.setLineDash([]);
     }
 
-    // Línea de melodía
     if (this.puntos.length > 1) {
       ctx.beginPath();
       ctx.strokeStyle = '#141c18';
@@ -563,7 +766,6 @@ class RendizadorCanvas {
       ctx.stroke();
       ctx.shadowBlur = 0;
 
-      // Punto final brillante
       const ult = this.puntos[this.puntos.length - 1];
       ctx.beginPath();
       ctx.fillStyle = '#ff4488';
@@ -571,6 +773,147 @@ class RendizadorCanvas {
       ctx.arc(ult.x, ult.y, 5, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
+    }
+  }
+
+  _renderizarSecuencia() {
+    const { ctx, canvas, mapaNotas } = this;
+    const W = canvas.width, H = canvas.height;
+    const total = mapaNotas.obtenerTotal();
+    const pasoY = H / total;
+    const notas = this.seqNotas;
+
+    // Fondo
+    ctx.fillStyle = '#07071a';
+    ctx.fillRect(0, 0, W, H);
+
+    // Filas de notas
+    for (let i = 0; i < total; i++) {
+      const nota = mapaNotas.obtenerPorIndice(i);
+      const y    = i * pasoY;
+      const esNatural = [0, 2, 4, 5, 7, 9, 11].includes(nota.semitonos);
+      const permitida = !this.filtroSemitonos ||
+        this.filtroSemitonos.has(((nota.semitonos % 12) + 12) % 12);
+
+      // Fondo de fila
+      if (permitida) {
+        ctx.fillStyle = esNatural
+          ? 'rgba(80,80,180,0.06)'
+          : 'rgba(40,40,120,0.04)';
+        ctx.fillRect(0, y, W, pasoY);
+      }
+
+      // Línea horizontal
+      ctx.strokeStyle = esNatural
+        ? 'rgba(180,180,255,0.10)'
+        : 'rgba(80,80,200,0.04)';
+      ctx.lineWidth = esNatural ? 0.8 : 0.4;
+      ctx.setLineDash(esNatural ? [] : [4, 8]);
+      ctx.beginPath();
+      ctx.moveTo(0, y); ctx.lineTo(W, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    if (notas.length === 0) {
+      // Hint vacío
+      ctx.fillStyle = 'rgba(80,80,180,0.35)';
+      ctx.font = '13px Courier New';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Click en el teclado o aquí para agregar notas — Click sobre una nota para quitarla', W / 2, H / 2);
+      return;
+    }
+
+    const visible = Math.max(notas.length + 2, 16);
+    const cellW   = W / visible;
+
+    // Línea de conexión (solo entre notas con pitch, no silencios)
+    if (notas.length > 1) {
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(68,120,255,0.25)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 5]);
+      let movePending = true;
+      notas.forEach((n, i) => {
+        if (n.esSilencio) { movePending = true; return; }
+        const nx = (i + 0.5) * cellW;
+        const ny = n.indice * pasoY + pasoY / 2;
+        if (movePending) { ctx.moveTo(nx, ny); movePending = false; }
+        else ctx.lineTo(nx, ny);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Notas
+    notas.forEach((n, i) => {
+      const nx     = (i + 0.5) * cellW;
+      const ny     = n.esSilencio ? H / 2 : n.indice * pasoY + pasoY / 2;
+      const rad    = Math.min(cellW * 0.38, pasoY * 0.42, 18);
+      const activa = i === this.seqPos;
+
+      if (n.esSilencio) {
+        // ── Silencio: círculo punteado gris ──
+        if (activa) {
+          ctx.fillStyle = 'rgba(255,68,136,0.08)';
+          ctx.fillRect(i * cellW, 0, cellW, H);
+        }
+        ctx.beginPath();
+        ctx.arc(nx, ny, rad, 0, Math.PI * 2);
+        ctx.fillStyle = activa ? 'rgba(255,68,136,0.18)' : 'rgba(60,60,90,0.5)';
+        ctx.fill();
+        ctx.setLineDash([3, 3]);
+        ctx.strokeStyle = activa ? '#ff4488' : '#555577';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Símbolo de silencio
+        const fs = Math.max(Math.min(rad * 0.95, 12), 7);
+        ctx.fillStyle = activa ? '#ff88bb' : '#777799';
+        ctx.font = `bold ${fs}px Courier New`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('—', nx, ny);
+        ctx.fillStyle = 'rgba(120,120,180,0.4)';
+        ctx.font = `${Math.max(fs - 3, 6)}px Courier New`;
+        ctx.fillText(i + 1, nx, ny - rad - 5);
+      } else {
+        // ── Nota normal ──
+        if (activa) {
+          ctx.fillStyle = 'rgba(255,68,136,0.12)';
+          ctx.fillRect(0, n.indice * pasoY, W, pasoY);
+        }
+        ctx.beginPath();
+        ctx.arc(nx, ny, rad, 0, Math.PI * 2);
+        ctx.fillStyle = activa ? '#ff4488' : '#3355cc';
+        ctx.shadowColor = activa ? '#ff4488' : '#4466ff';
+        ctx.shadowBlur  = activa ? 14 : 6;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = activa ? '#ff88bb' : '#6688ff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        const fs = Math.max(Math.min(rad * 0.85, 11), 7);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${fs}px Courier New`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(n.nombre, nx, ny);
+        ctx.fillStyle = 'rgba(180,180,255,0.5)';
+        ctx.font = `${Math.max(fs - 3, 6)}px Courier New`;
+        ctx.fillText(i + 1, nx, ny - rad - 5);
+      }
+    });
+
+    // Cursor de reproducción (línea vertical)
+    if (this.seqPos >= 0) {
+      const cx = (this.seqPos + 0.5) * cellW;
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(255,68,136,0.45)';
+      ctx.lineWidth = 2;
+      ctx.moveTo(cx, 0); ctx.lineTo(cx, H);
+      ctx.stroke();
     }
   }
 }
@@ -589,18 +932,22 @@ const MAPA_TECLADO = {
 const MAPA_INVERSO = Object.fromEntries(Object.entries(MAPA_TECLADO).map(([k,v]) => [v,k]));
 
 class AplicacionMelodica {
-  constructor() {
+  constructor(metro) {
     this.mapaNotas     = new MapaNotas();
     this.audio         = new GestorAudio();
     this.detector      = new DetectorEscala();
     this.grabador      = new GrabadorMelodia();
+    this.secuenciador  = new SecuenciadorMelodia();
+    this.metro         = metro; // referencia al metrónomo para sincronizar
 
     this.canvas        = document.getElementById('canvasMelodia');
     this.render        = new RendizadorCanvas(this.canvas, this.mapaNotas);
 
     this.tocando          = false;
     this.enGrabacion      = false;
+    this.modoSecuencia    = false;
     this.filtroSemitonos  = null;   // Set<number> | null
+    this._pendingSeqStart = false;  // true mientras espera el próximo compás
 
     this._init();
   }
@@ -619,9 +966,13 @@ class AplicacionMelodica {
   }
 
   _bindEventos() {
-    this.canvas.addEventListener('mouseenter', e => this._onEnter(e));
-    this.canvas.addEventListener('mousemove',  e => this._onMove(e));
-    this.canvas.addEventListener('mouseleave', ()  => this._onLeave());
+    // Modo libre: mouse sobre canvas
+    this.canvas.addEventListener('mouseenter', e => { if (!this.modoSecuencia) this._onEnter(e); });
+    this.canvas.addEventListener('mousemove',  e => { if (!this.modoSecuencia) this._onMove(e); });
+    this.canvas.addEventListener('mouseleave', ()  => { if (!this.modoSecuencia) this._onLeave(); });
+
+    // Modo secuencia: click en canvas
+    this.canvas.addEventListener('click', e => { if (this.modoSecuencia) this._onClickCanvas(e); });
 
     document.querySelectorAll('.btn-nota').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -633,6 +984,15 @@ class AplicacionMelodica {
     document.getElementById('btnLimpiar').addEventListener('click', () => this._limpiar());
     document.getElementById('btnGrabar').addEventListener('click',  () => this._toggleGrabar());
     document.getElementById('btnReproducir').addEventListener('click', () => this._reproducir());
+    document.getElementById('btnModoSeq').addEventListener('click', () => this._toggleModoSeq());
+    document.getElementById('btnQuitarUltima').addEventListener('click', () => {
+      this.secuenciador.quitarUltima();
+      this._actualizarContadorSeq();
+    });
+    document.getElementById('btnSilencio').addEventListener('click', () => {
+      this.secuenciador.agregarSilencio();
+      this._actualizarContadorSeq();
+    });
     document.getElementById('selectorOnda').addEventListener('change', e => {
       this.audio.cambiarTipoOnda(e.target.value);
     });
@@ -642,29 +1002,62 @@ class AplicacionMelodica {
     document.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
       if (e.code === 'Space') { e.preventDefault(); this._limpiar(); return; }
+      // Backspace = quitar última en modo seq
+      if (e.code === 'Backspace' && this.modoSecuencia) {
+        e.preventDefault();
+        this.secuenciador.quitarUltima();
+        this._actualizarContadorSeq();
+        return;
+      }
       const key = e.key.toLowerCase();
       if (MAPA_TECLADO[key] !== undefined && !teclasPulsadas.has(key)) {
         e.preventDefault();
         teclasPulsadas.add(key);
-        this._tocarTeclaPiano(MAPA_TECLADO[key]);
+        const indice = this._resolverIndice(MAPA_TECLADO[key]);
+        if (indice === null) return;
+        this._tocarTeclaPiano(indice);
       }
     });
     document.addEventListener('keyup', (e) => {
       const key = e.key.toLowerCase();
       if (!teclasPulsadas.has(key)) return;
       teclasPulsadas.delete(key);
-      // Si quedan otras teclas pulsadas, suena la última
-      if (teclasPulsadas.size > 0) {
-        const ultima = [...teclasPulsadas].at(-1);
-        this._tocarTeclaPiano(MAPA_TECLADO[ultima]);
-      } else {
-        this._soltarTeclaPiano();
+      if (!this.modoSecuencia) {
+        if (teclasPulsadas.size > 0) {
+          const ultima = [...teclasPulsadas].at(-1);
+          const indice = this._resolverIndice(MAPA_TECLADO[ultima]);
+          if (indice !== null) this._tocarTeclaPiano(indice);
+        } else {
+          this._soltarTeclaPiano();
+        }
       }
     });
 
     // Ocultar hint al primer movimiento
     const hint = document.getElementById('hint');
     this.canvas.addEventListener('mouseenter', () => { if(hint) hint.style.opacity = '0'; }, { once: true });
+  }
+
+  // Cuando el filtro está activo, remapea la posición de teclado a las notas permitidas
+  _resolverIndice(posicionTeclado) {
+    if (!this.filtroSemitonos || this.filtroSemitonos.size === 0) {
+      return posicionTeclado;
+    }
+    const filtrados = this._getIndicesFiltrados();
+    if (filtrados.length === 0) return null;
+    return filtrados[posicionTeclado % filtrados.length];
+  }
+
+  // Devuelve los índices (en mapaNotas) de notas que pasan el filtro, en orden
+  _getIndicesFiltrados() {
+    const indices = [];
+    for (let i = 0; i < this.mapaNotas.obtenerTotal(); i++) {
+      const nota = this.mapaNotas.obtenerPorIndice(i);
+      if (this.filtroSemitonos.has(((nota.semitonos % 12) + 12) % 12)) {
+        indices.push(i);
+      }
+    }
+    return indices;
   }
 
   _posicionEnCanvas(e) {
@@ -702,6 +1095,27 @@ class AplicacionMelodica {
     document.getElementById('frecuenciaActual').textContent = '— Hz';
   }
 
+  // Click en canvas en modo secuencia
+  _onClickCanvas(e) {
+    const { x, y } = this._posicionEnCanvas(e);
+    const total = this.mapaNotas.obtenerTotal();
+
+    // Primero: detectar click sobre nota existente → quitar
+    const hit = this.secuenciador.hitTest(x, y, this.canvas.width, this.canvas.height, total);
+    if (hit >= 0) {
+      this.secuenciador.quitarNota(hit);
+      this._actualizarContadorSeq();
+      return;
+    }
+
+    // Si no tocó ninguna nota: añadir nota en la posición Y del cursor
+    const { nota, indice } = this.mapaNotas.obtenerPorY(y, this.canvas.height, this.filtroSemitonos);
+    this.secuenciador.agregarNota(nota, indice);
+    this.audio.tocarBreve(nota.frecuencia, 220);
+    this._actualizarUI(nota, indice);
+    this._actualizarContadorSeq();
+  }
+
   _actualizarUI(nota, indice) {
     document.getElementById('notaActual').textContent     = nota.nombre;
     document.getElementById('frecuenciaActual').textContent = `${nota.frecuencia.toFixed(1)} Hz`;
@@ -731,6 +1145,19 @@ class AplicacionMelodica {
     const total = this.mapaNotas.obtenerTotal();
     const pct   = 100 / total;
 
+    // Calcular índices filtrados para atajos de teclado
+    const filtrados = (this.filtroSemitonos && this.filtroSemitonos.size > 0)
+      ? this._getIndicesFiltrados()
+      : null;
+    // Mapa inverso: índice de nota → tecla de atajo (respetando filtro)
+    const atajoFiltrado = {};
+    if (filtrados) {
+      filtrados.forEach((indiceNota, pos) => {
+        const key = MAPA_INVERSO[pos];
+        if (key !== undefined) atajoFiltrado[indiceNota] = key;
+      });
+    }
+
     for (let i = 0; i < total; i++) {
       const nota = this.mapaNotas.obtenerPorIndice(i);
       const div  = document.createElement('div');
@@ -744,27 +1171,30 @@ class AplicacionMelodica {
       spanNombre.className = 'tecla-nombre';
       spanNombre.textContent = nota.nombre;
       div.appendChild(spanNombre);
-      if (MAPA_INVERSO[i] !== undefined) {
+
+      // Mostrar atajo: si filtro activo, usa atajoFiltrado; si no, usa MAPA_INVERSO
+      const atajo = filtrados ? atajoFiltrado[i] : MAPA_INVERSO[i];
+      if (atajo !== undefined) {
         const spanAtajo = document.createElement('span');
         spanAtajo.className = 'tecla-atajo';
-        spanAtajo.textContent = MAPA_INVERSO[i].toUpperCase();
+        spanAtajo.textContent = atajo.toUpperCase();
         div.appendChild(spanAtajo);
       }
 
       // Mouse: clic sostenido + deslizar entre teclas
       div.addEventListener('mousedown',  ()  => this._tocarTeclaPiano(i));
-      div.addEventListener('mouseup',    ()  => this._soltarTeclaPiano());
+      div.addEventListener('mouseup',    ()  => { if (!this.modoSecuencia) this._soltarTeclaPiano(); });
       div.addEventListener('mouseenter', (e) => { if (e.buttons === 1) this._tocarTeclaPiano(i); });
 
-      // Touch: tap y glissando
+      // Touch
       div.addEventListener('touchstart', (e) => { e.preventDefault(); this._tocarTeclaPiano(i); }, { passive: false });
-      div.addEventListener('touchend',   (e) => { e.preventDefault(); this._soltarTeclaPiano(); },  { passive: false });
+      div.addEventListener('touchend',   (e) => { e.preventDefault(); if (!this.modoSecuencia) this._soltarTeclaPiano(); }, { passive: false });
 
       panel.appendChild(div);
       this._teclas.push(div);
     }
 
-    // Touch move para glissando (deslizar el dedo)
+    // Touch move para glissando
     panel.addEventListener('touchmove', (e) => {
       e.preventDefault();
       const t  = e.touches[0];
@@ -778,12 +1208,36 @@ class AplicacionMelodica {
 
   _tocarTeclaPiano(indice) {
     const nota = this.mapaNotas.obtenerPorIndice(indice);
-    if (this._teclaPresionada === indice) return;
-    this._teclaPresionada = indice;
-    this.audio.iniciarNota(nota.frecuencia);
-    this._actualizarTeclaActiva(indice);
-    document.getElementById('notaActual').textContent      = nota.nombre;
-    document.getElementById('frecuenciaActual').textContent = `${nota.frecuencia.toFixed(1)} Hz`;
+    if (!nota) return;
+
+    if (this.modoSecuencia) {
+      // En modo sec: añadir nota a la secuencia
+      if (this._teclaPresionada === indice) return;
+      this._teclaPresionada = indice;
+      this.secuenciador.agregarNota(nota, indice);
+      this.audio.tocarBreve(nota.frecuencia, 220);
+      this._actualizarTeclaActiva(indice);
+      document.getElementById('notaActual').textContent      = nota.nombre;
+      document.getElementById('frecuenciaActual').textContent = `${nota.frecuencia.toFixed(1)} Hz`;
+      this._actualizarContadorSeq();
+      // Resaltar brevemente la tecla como "en secuencia"
+      const tecla = this._teclas[indice];
+      if (tecla) {
+        tecla.classList.add('tecla-en-seq');
+        setTimeout(() => {
+          tecla.classList.remove('tecla-en-seq');
+          tecla.classList.remove('tecla-activa');
+        }, 250);
+      }
+      this._teclaPresionada = -1;
+    } else {
+      if (this._teclaPresionada === indice) return;
+      this._teclaPresionada = indice;
+      this.audio.iniciarNota(nota.frecuencia);
+      this._actualizarTeclaActiva(indice);
+      document.getElementById('notaActual').textContent      = nota.nombre;
+      document.getElementById('frecuenciaActual').textContent = `${nota.frecuencia.toFixed(1)} Hz`;
+    }
   }
 
   _soltarTeclaPiano() {
@@ -799,6 +1253,7 @@ class AplicacionMelodica {
   }
 
   _toggleGrabar() {
+    if (this.modoSecuencia) return; // Grabar solo en modo libre
     const btn = document.getElementById('btnGrabar');
     if (!this.enGrabacion) {
       this.enGrabacion = true;
@@ -813,31 +1268,102 @@ class AplicacionMelodica {
     }
   }
 
-  _reproducir() {
-    if (!this.grabador.hayDatos()) return;
-    this.render.limpiarPuntos();
+  _lanzarSecuencia(startDelayMs = 0) {
+    const btn = document.getElementById('btnReproducir');
+    const bpm = parseInt(document.getElementById('sliderBpm').value) || 100;
+    btn.textContent = '⏹ Detener';
+    btn.classList.add('reproduciendo');
+    this._pendingSeqStart = false;
 
-    this.grabador.reproducir(
-      (p) => {
-        this.audio.iniciarNota(p.frecuencia);
-        this.render.agregarPunto(p.x, p.y);
-        document.getElementById('notaActual').textContent     = p.nombreNota;
-        document.getElementById('frecuenciaActual').textContent = `${p.frecuencia.toFixed(1)} Hz`;
-      },
-      () => this.audio.detenerNota()
-    );
+    const cbNota = (n) => {
+      if (n.esSilencio) {
+        this.audio.detenerNota();
+        this._actualizarTeclaActiva(-1);
+        document.getElementById('notaActual').textContent       = '—';
+        document.getElementById('frecuenciaActual').textContent = '— Hz';
+      } else {
+        this.audio.iniciarNota(n.frecuencia);
+        this._actualizarTeclaActiva(n.indice);
+        document.getElementById('notaActual').textContent       = n.nombre;
+        document.getElementById('frecuenciaActual').textContent = `${n.frecuencia.toFixed(1)} Hz`;
+      }
+    };
+    const cbFin = () => {
+      this._actualizarTeclaActiva(-1);
+      // Loop: relanzar sin detener el audio para evitar glitch en la primera nota
+      if (this.modoSecuencia && this.secuenciador.hayDatos()) {
+        this.secuenciador.reproducir(bpm, cbNota, cbFin, 0);
+      } else {
+        this.audio.detenerNota();
+        document.getElementById('notaActual').textContent       = '—';
+        document.getElementById('frecuenciaActual').textContent = '— Hz';
+        btn.textContent = '▶ Reproducir';
+        btn.classList.remove('reproduciendo');
+      }
+    };
+
+    this.secuenciador.reproducir(bpm, cbNota, cbFin, startDelayMs);
+  }
+
+  _reproducir() {
+    const btn = document.getElementById('btnReproducir');
+
+    if (this.modoSecuencia) {
+      // Cancelar si está esperando o reproduciendo
+      if (this.secuenciador.reproduciendo || this._pendingSeqStart) {
+        this._pendingSeqStart = false;
+        this.metro.onCompas = null;
+        this.secuenciador.detener();
+        this.audio.detenerNota();
+        btn.textContent = '▶ Reproducir';
+        btn.classList.remove('reproduciendo');
+        return;
+      }
+      if (!this.secuenciador.hayDatos()) return;
+
+      const metroActivo = this.metro && this.metro.corriendo;
+
+      if (metroActivo) {
+        // Esperar al próximo compás (paso 0) del metrónomo
+        this._pendingSeqStart = true;
+        btn.textContent = '⏳ Esperando…';
+        btn.classList.add('reproduciendo');
+
+        this.metro.onCompas = (beatAudioTime, audioCtx) => {
+          // Disparar una sola vez
+          this.metro.onCompas = null;
+          if (!this._pendingSeqStart) return;
+          // Calcular cuántos ms faltan para ese beat exacto
+          const delayMs = Math.max(0, (beatAudioTime - audioCtx.currentTime) * 1000);
+          this._lanzarSecuencia(delayMs);
+        };
+      } else {
+        // Sin metrónomo: arrancar de inmediato
+        this._lanzarSecuencia(0);
+      }
+    } else {
+      if (!this.grabador.hayDatos()) return;
+      this.render.limpiarPuntos();
+      this.grabador.reproducir(
+        (p) => {
+          this.audio.iniciarNota(p.frecuencia);
+          this.render.agregarPunto(p.x, p.y);
+          document.getElementById('notaActual').textContent     = p.nombreNota;
+          document.getElementById('frecuenciaActual').textContent = `${p.frecuencia.toFixed(1)} Hz`;
+        },
+        () => this.audio.detenerNota()
+      );
+    }
   }
 
   _toggleFiltro() {
     const btn = document.getElementById('btnFiltrar');
 
     if (this.filtroSemitonos) {
-      // Desactivar filtro
       this.filtroSemitonos = null;
       btn.textContent = '▶ Filtrar';
       btn.classList.remove('filtro-activo');
     } else {
-      // Leer notas seleccionadas
       const set = new Set();
       document.querySelectorAll('.btn-nota.seleccionada').forEach(b => {
         set.add(parseInt(b.dataset.semi));
@@ -847,22 +1373,302 @@ class AplicacionMelodica {
       btn.textContent = '✕ Quitar filtro';
       btn.classList.add('filtro-activo');
     }
+    this.render.filtroSemitonos = this.filtroSemitonos;
     this._construirTeclado();
   }
 
+  _toggleModoSeq() {
+    this.modoSecuencia = !this.modoSecuencia;
+    const btn     = document.getElementById('btnModoSeq');
+    const btnQuit = document.getElementById('btnQuitarUltima');
+    const contEl  = document.getElementById('contadorSeq');
+    const hint    = document.getElementById('hint');
+
+    this.render.modoSeq = this.modoSecuencia;
+
+    const btnSil = document.getElementById('btnSilencio');
+    if (this.modoSecuencia) {
+      btn.textContent = '✕ Salir Sec';
+      btn.classList.add('modo-seq');
+      btnQuit.style.display = '';
+      btnSil.style.display  = '';
+      contEl.classList.add('visible');
+      if (hint) hint.style.display = 'none';
+      // Detener si estaba grabando
+      if (this.enGrabacion) {
+        this.enGrabacion = false;
+        this.grabador.detener();
+        document.getElementById('btnGrabar').textContent = '⏺ Grabar';
+        document.getElementById('btnGrabar').classList.remove('grabando');
+      }
+      if (this.tocando) this._onLeave();
+      this.canvas.style.cursor = 'pointer';
+    } else {
+      btn.textContent = '▶▶ Sec';
+      btn.classList.remove('modo-seq');
+      btnQuit.style.display = 'none';
+      btnSil.style.display  = 'none';
+      contEl.classList.remove('visible');
+      if (hint) hint.style.display = '';
+      this._pendingSeqStart = false;
+      if (this.metro) this.metro.onCompas = null;
+      this.secuenciador.detener();
+      this.audio.detenerNota();
+      document.getElementById('btnReproducir').textContent = '▶ Reproducir';
+      document.getElementById('btnReproducir').classList.remove('reproduciendo');
+      this.canvas.style.cursor = 'crosshair';
+    }
+    this._actualizarContadorSeq();
+  }
+
+  _actualizarContadorSeq() {
+    const n = this.secuenciador.notas.length;
+    document.getElementById('contadorSeq').textContent = `${n} nota${n !== 1 ? 's' : ''}`;
+  }
+
   _limpiar() {
-    this.render.limpiarPuntos();
-    this._actualizarTeclaActiva(-1);
+    if (this.modoSecuencia) {
+      this.secuenciador.limpiar();
+      this._actualizarContadorSeq();
+      this._actualizarTeclaActiva(-1);
+    } else {
+      this.render.limpiarPuntos();
+      this._actualizarTeclaActiva(-1);
+    }
   }
 
   _bucleRender() {
-    const tick = () => { this.render.renderizar(); requestAnimationFrame(tick); };
+    const tick = () => {
+      // Pasar estado del secuenciador al renderer en cada frame
+      if (this.modoSecuencia) {
+        this.render.seqNotas = this.secuenciador.notas;
+        this.render.seqPos   = this.secuenciador.posActual;
+      }
+      this.render.renderizar();
+      requestAnimationFrame(tick);
+    };
     requestAnimationFrame(tick);
   }
 }
 
+// ============================================================
+// MetronomeoBateria — síntesis percusiva vía Web Audio API
+// ============================================================
+class MetronomeoBateria {
+  constructor() {
+    this.ctx          = null;
+    this.corriendo    = false;
+    this.bpm          = 100;
+    this.paso         = 0;
+    this.patronIdx    = 0;
+    this.nextNoteTime = 0;
+    this._timerID     = null;
+    this.onBeat       = null;
+    this.onCompas     = null; // callback(beatAudioTime) — dispara en paso 0 de cada compás
+
+    this.patrones = [
+      { nombre: 'Rock Básico',
+        kick:  [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
+        snare: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+        hihat: [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
+        open:  [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1] },
+      { nombre: 'Funk',
+        kick:  [1,0,0,1, 0,0,1,0, 0,0,1,0, 0,1,0,0],
+        snare: [0,0,0,0, 1,0,0,1, 0,0,0,0, 1,0,0,0],
+        hihat: [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1],
+        open:  [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,1,0] },
+      { nombre: 'Reggaeton',
+        kick:  [1,0,0,1, 0,1,0,0, 1,0,0,1, 0,1,0,0],
+        snare: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+        hihat: [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
+        open:  [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0] },
+      { nombre: 'Samba',
+        kick:  [1,0,0,0, 0,0,1,0, 0,1,0,0, 0,0,1,0],
+        snare: [0,0,1,0, 1,0,0,0, 0,0,1,0, 1,0,0,1],
+        hihat: [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],
+        open:  [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0] },
+      { nombre: 'Hip-Hop',
+        kick:  [1,0,0,0, 0,0,0,0, 1,0,0,1, 0,0,0,0],
+        snare: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+        hihat: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+        open:  [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0] },
+    ];
+  }
+
+  async _asegurarCtx() {
+    if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (this.ctx.state === 'suspended') await this.ctx.resume();
+  }
+
+  _kick(t) {
+    const c = this.ctx;
+    const osc = c.createOscillator(), g = c.createGain();
+    osc.connect(g); g.connect(c.destination);
+    osc.frequency.setValueAtTime(180, t);
+    osc.frequency.exponentialRampToValueAtTime(0.001, t + 0.45);
+    g.gain.setValueAtTime(0.9, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+    osc.start(t); osc.stop(t + 0.5);
+  }
+
+  _snare(t) {
+    const c = this.ctx;
+    const len = Math.ceil(c.sampleRate * 0.18);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const filt = c.createBiquadFilter();
+    filt.type = 'bandpass'; filt.frequency.value = 1200; filt.Q.value = 0.8;
+    const g = c.createGain();
+    src.connect(filt); filt.connect(g); g.connect(c.destination);
+    g.gain.setValueAtTime(0.65, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    src.start(t); src.stop(t + 0.18);
+    const osc = c.createOscillator(), og = c.createGain();
+    osc.connect(og); og.connect(c.destination);
+    osc.frequency.value = 185;
+    og.gain.setValueAtTime(0.4, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    osc.start(t); osc.stop(t + 0.07);
+  }
+
+  _hihat(t, open) {
+    const c = this.ctx;
+    const dur = open ? 0.28 : 0.045;
+    const len = Math.ceil(c.sampleRate * dur);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const filt = c.createBiquadFilter();
+    filt.type = 'highpass'; filt.frequency.value = 9000;
+    const g = c.createGain();
+    src.connect(filt); filt.connect(g); g.connect(c.destination);
+    g.gain.setValueAtTime(open ? 0.28 : 0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.start(t); src.stop(t + dur);
+  }
+
+  _schedule() {
+    while (this.nextNoteTime < this.ctx.currentTime + 0.1) {
+      const p = this.patrones[this.patronIdx];
+      const s = this.paso;
+      if (p.kick[s])  this._kick(this.nextNoteTime);
+      if (p.snare[s]) this._snare(this.nextNoteTime);
+      if (p.open[s])  this._hihat(this.nextNoteTime, true);
+      else if (p.hihat[s]) this._hihat(this.nextNoteTime, false);
+
+      const fireAt = this.nextNoteTime;
+      const info = { kick: !!p.kick[s], snare: !!p.snare[s], hh: !!(p.hihat[s] || p.open[s]) };
+      const delayMs = Math.max(0, (fireAt - this.ctx.currentTime) * 1000);
+      setTimeout(
+        () => { if (this.corriendo && this.onBeat) this.onBeat(s, info); },
+        delayMs
+      );
+      // Notificar inicio de compás (paso 0) con el tiempo exacto del reloj de audio
+      if (s === 0 && this.onCompas) {
+        const cb = this.onCompas;
+        setTimeout(() => { if (this.corriendo && cb === this.onCompas) cb(fireAt, this.ctx); }, delayMs);
+      }
+
+      this.nextNoteTime += (60 / this.bpm) / 4;
+      this.paso = (this.paso + 1) % 16;
+    }
+    this._timerID = setTimeout(() => this._schedule(), 25);
+  }
+
+  async iniciar() {
+    await this._asegurarCtx();
+    this.paso = 0;
+    this.nextNoteTime = this.ctx.currentTime + 0.05;
+    this._schedule();
+    this.corriendo = true;
+  }
+
+  detener() {
+    clearTimeout(this._timerID);
+    this.corriendo = false;
+    this.paso = 0;
+    if (this.onBeat) this.onBeat(-1, {});
+  }
+
+  setBpm(v) { this.bpm = Math.max(60, Math.min(200, v)); }
+  setPatron(i) { this.patronIdx = i; }
+}
+
+function iniciarMetronomo() {
+  const metro = new MetronomeoBateria();
+  metro._instancia = metro; // referencia propia para acceso externo
+  const cells = [];
+
+  const grid = document.getElementById('stepsGrid');
+  for (let i = 0; i < 16; i++) {
+    if (i > 0 && i % 4 === 0) {
+      const sep = document.createElement('div');
+      sep.className = 'step-sep';
+      grid.appendChild(sep);
+    }
+    const cell = document.createElement('div');
+    cell.className = 'step-cell';
+    grid.appendChild(cell);
+    cells.push(cell);
+  }
+
+  let pasoAnterior = -1;
+
+  metro.onBeat = (paso, info) => {
+    if (pasoAnterior >= 0) cells[pasoAnterior].className = 'step-cell';
+    if (paso < 0) { pasoAnterior = -1; return; }
+    const n = (info.kick ? 1 : 0) + (info.snare ? 1 : 0) + (info.hh ? 1 : 0);
+    let cls = 'step-cell ';
+    if      (n > 1)      cls += 's-multi';
+    else if (info.kick)  cls += 's-kick';
+    else if (info.snare) cls += 's-snare';
+    else if (info.hh)    cls += 's-hh';
+    else                 cls += 's-vacio';
+    cells[paso].className = cls;
+    pasoAnterior = paso;
+  };
+
+  document.getElementById('btnMetronomo').addEventListener('click', () => {
+    document.getElementById('panelMetronomo').classList.toggle('oculto');
+    document.getElementById('btnMetronomo').classList.toggle('panel-abierto');
+  });
+
+  document.getElementById('btnMetroPlay').addEventListener('click', async () => {
+    const btn = document.getElementById('btnMetroPlay');
+    if (!metro.corriendo) {
+      await metro.iniciar();
+      btn.textContent = '⏹ Detener';
+      btn.classList.add('metro-activo');
+    } else {
+      metro.detener();
+      btn.textContent = '▶ Iniciar';
+      btn.classList.remove('metro-activo');
+    }
+  });
+
+  document.getElementById('sliderBpm').addEventListener('input', e => {
+    const v = parseInt(e.target.value);
+    metro.setBpm(v);
+    document.getElementById('bpmValor').textContent = v;
+  });
+
+  document.getElementById('selectorPatron').addEventListener('change', e => {
+    metro.setPatron(parseInt(e.target.value));
+  });
+
+  return metro;
+}
+
 // ── Arranque ──
-document.addEventListener('DOMContentLoaded', () => new AplicacionMelodica());
+document.addEventListener('DOMContentLoaded', () => {
+  const metro = iniciarMetronomo();
+  new AplicacionMelodica(metro);
+});
 </script>
 </body>
 </html>
